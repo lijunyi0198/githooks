@@ -23,7 +23,7 @@ frameworks/templating languages to generate a simple HTML diff and email.
 
 ## Screenshot ##
 
-[![post-receive HTML commit email](https://github.com/kenshaw/shell-config/raw/master/git-commit-hooks/img/screenshot-th.png)](https://github.com/kenshaw/shell-config/raw/master/git-commit-hooks/img/screenshot.png)
+[![post-receive HTML commit email](https://github.com/kenshaw/githooks/raw/master/img/screenshot-th.png)](https://github.com/kenshaw/githooks/raw/master/img/screenshot.png)
 
 ## Configuration ##
 
@@ -45,8 +45,8 @@ Make sure that pygmentize is installed:
 To install:
 
 	cd ~/src/
-	git clone https://github.com/kenshaw/shell-config.git
-	ln -s ~/src/shell-config/git-commit-hooks/post-receive /var/lib/git/<repo>/hooks
+	git clone https://github.com/kenshaw/githooks.git
+	ln -s ~/src/githooks/post-receive /var/lib/git/<repo>/hooks
 	cd /var/lib/git/<repo>
 	git config hooks.mailinglist '<some email address>'
 	git config hooks.defaultdomain '<default domain address of the sender>' 
