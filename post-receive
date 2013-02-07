@@ -76,6 +76,11 @@
 #   with the jiraprefix link.  For instance, if the jiraprefix is PRJ- then
 #   PRJ-1239 and httplink is set as above, will link to:
 #   http://<your host>/jira/browse/PRJ-1239
+# hooks.crowdserver
+#   Atlassian Crowd server - if supplied along (along with the appname/pass)
+#   then it will query the server for the display name of the user and use that
+#   as the display name in the email. Should be formatted like:
+#   http://<crowd_app_name>:<crowd_app_pass>@<your host>/crowd
 # hooks.defaultdomain
 #   Default domain to affix to the $REMOTE_USER environment variable
 #   Assumes this is being executed through HTTP
@@ -705,16 +710,17 @@ show_new_revisions()
     git rev-list --stdin $revspec |
     while read onerev
     do
-        git show -C --summary --pretty=format:"Commit:  <a href=\"${httplink}%H\">%H</a>%nAuthor:  %cn &lt;%ce&gt;%nDate:    %cd%n" $onerev
+        git show -s --pretty=format:"Commit:  <a href=\"${httplink}%H\">%H</a>%nAuthor:  %cn &lt;%ce&gt;%nDate:    %cd%n" $onerev
 
         # get the commit message, and add the link if available to the issue
-        commit_msg=$(git show -C --summary --pretty=format:"%s" $onerev)
+        commit_msg=$(git show -s --pretty=format:"%s" $onerev)
         if [ -n "$jiralink" -a -n "$jiraprefix" ]; then
             commit_msg=$(echo "$commit_msg" | perl -pe "s@(${jiraprefix}[0-9]+)@<a href=\"${jiralink}\1\">\1<\/a>@g")
             #commit_msg='blah'
         fi
 
         echo "Message: ${commit_msg}"
+        echo ""
 
         # convert diff to html
         git show -C --pretty=format:'' $onerev | sed 1d > gitlog.txt
@@ -777,12 +783,26 @@ fi
 recipients=$(git config hooks.mailinglist)
 announcerecipients=$(git config hooks.announcelist)
 #envelopesender=$(git config hooks.envelopesender)
-envelopesender="${REMOTE_USER} <${REMOTE_USER}@$(git config hooks.defaultdomain)>"
+
+# look up the committer name from crowd if the crowd server is present
+crowdserver=$(git config hooks.crowdserver)
+if [ -n "$crowdserver" ]; then
+  displayname=$(curl -s "${crowdserver}/rest/usermanagement/latest/user.json?username=${REMOTE_USER}" | grep -Po '"display-name":.*?[^\\]",' | perl -pe 's/"display-name"://; s/^"//; s/",$//')
+fi
+
+# set the displayname if not available from crowd
+if [ -z "$displayname" ]; then
+  displayname="$REMOTE_USER"
+fi
+
+envelopesender="${displayname} <${REMOTE_USER}@$(git config hooks.defaultdomain)>"
 emailprefix=$(git config hooks.emailprefix || echo '[SCM] ')
 maxlines=$(git config hooks.emailmaxlines)
 httplink=$(git config hooks.httplink)
+
 jiralink=$(git config hooks.jiralink)
 jiraprefix=$(git config hooks.jiraprefix)
+
 pygmentizeoptions=$(git config hooks.pygmentizeoptions)
 diffopts=$(git config hooks.diffopts)
 : ${diffopts:="--stat --summary --find-copies-harder"}
