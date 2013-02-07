@@ -68,7 +68,14 @@
 #   options to include a unified diff of changes in addition to the usual
 #   summary output.
 # hooks.httplink
-#   Prefix to a web based tracker, ie http://<your host>/git?cs=
+#   Prefix to a web based code browser, ie http://<your host>/git?cs=
+# hooks.jiralink
+#   Prefix to an issue tracker (JIRA or ...), ie http://<your host>/jira/browse/
+# hooks.jiraprefix
+#   JIRA Issue prefix - will provide a HTML link to the issue in combination
+#   with the jiraprefix link.  For instance, if the jiraprefix is PRJ- then
+#   PRJ-1239 and httplink is set as above, will link to:
+#   http://<your host>/jira/browse/PRJ-1239
 # hooks.defaultdomain
 #   Default domain to affix to the $REMOTE_USER environment variable
 #   Assumes this is being executed through HTTP
@@ -257,7 +264,7 @@ generate_email_header()
 #
 #	The $refname_type, $short_refname has been ${change_type}d
 #	EOF
-	
+
     # --- Email (all stdout will be the email)
 	# Generate header
 	cat <<-EOF
@@ -698,9 +705,18 @@ show_new_revisions()
     git rev-list --stdin $revspec |
     while read onerev
     do
-        git show -C --summary --pretty=format:"Commit:  <a href=\"${httplink}%H\">%H</a>%nAuthor:  %cn &lt;%ce&gt;%nDate:    %cd%nMessage: %s" $onerev
+        git show -C --summary --pretty=format:"Commit:  <a href=\"${httplink}%H\">%H</a>%nAuthor:  %cn &lt;%ce&gt;%nDate:    %cd%n" $onerev
 
-        # convert diff to html 
+        # get the commit message, and add the link if available to the issue
+        commit_msg=$(git show -C --summary --pretty=format:"%s" $onerev)
+        if [ -n "$jiralink" -a -n "$jiraprefix" ]; then
+            commit_msg=$(echo "$commit_msg" | perl -pe "s@(${jiraprefix}[0-9]+)@<a href=\"${jiralink}\1\">\1<\/a>@g")
+            #commit_msg='blah'
+        fi
+
+        echo "Message: ${commit_msg}"
+
+        # convert diff to html
         git show -C --pretty=format:'' $onerev | sed 1d > gitlog.txt
         pygmentize -O noclasses=True${pygmentizeoptions} -f html -l diff -o gitlogemail.html gitlog.txt
         cat gitlogemail.html
@@ -765,6 +781,8 @@ envelopesender="${REMOTE_USER} <${REMOTE_USER}@$(git config hooks.defaultdomain)
 emailprefix=$(git config hooks.emailprefix || echo '[SCM] ')
 maxlines=$(git config hooks.emailmaxlines)
 httplink=$(git config hooks.httplink)
+jiralink=$(git config hooks.jiralink)
+jiraprefix=$(git config hooks.jiraprefix)
 pygmentizeoptions=$(git config hooks.pygmentizeoptions)
 diffopts=$(git config hooks.diffopts)
 : ${diffopts:="--stat --summary --find-copies-harder"}
