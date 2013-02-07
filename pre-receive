@@ -2,6 +2,7 @@
 
 use strict;
 
+# simple string trim sub
 sub trim {
     my $str = shift;
     $str =~ s/^\s+//;
@@ -9,20 +10,30 @@ sub trim {
     return $str;
 }
 
-my $errors = 0; # error count
-my @logs = ();  # collected logs from all revisions
+# retrieve a setting from git
+sub git_config {
+    my $setting = shift;
+
+    my $val = `git config $setting`;
+    chomp($val);
+
+    return $val;
+}
 
 # read commit revisions being pushed to the server
 my @revs = <STDIN>;
 
 # load hook settings
-my $email_domain = `git config hooks.defaultdomain`;
-chomp($email_domain);
+my $defaultdomain = git_config('hooks.defaultdomain');
+my $jiraprefix    = git_config('hooks.jiraprefix');
+my $commitmsglen  = int(git_config('hooks.commitmsglen') || 10);
 
-my $jira_prefix = `git config hooks.jiraprefix`;
-chomp($jira_prefix);
+# setup 'constants' used in the script below based on git settings
+my $sample_issue_id = $jiraprefix.'XXX';
+my $authenticated_user_email = lc(trim($ENV{REMOTE_USER}).'@'.trim($defaultdomain));
 
-my $authenticated_user_email = lc(trim($ENV{REMOTE_USER}).'@'.trim($email_domain));
+my $errors = 0; # error count
+my @logs = ();  # collected logs from all revisions
 
 # loop through the all pushed packs, and collect the logs
 foreach my $revinfo (@revs) {
@@ -36,7 +47,7 @@ foreach my $revinfo (@revs) {
 
     # get the revision info and add to the log array for later validation
     my $log;
-    if ($rev_old eq '0000000000000000000000000000000000000000') {
+    if ($rev_old =~ m/^0+$/) {
         # this is a new branch or tag, so collect the data in a different way
         my $other_branches = `git for-each-ref --format='\%(refname)' refs/heads/ | grep -F -v $refname`;
         chomp($other_branches);
@@ -72,10 +83,11 @@ unless ($errors) {
         my ($branch_name, $branch_or_tag_creation, $commit, $email, $message) = split(':', $log, 5);
 
         # error out if we don't have the right email address (needed for tracking in fisheye ... )
-        if ((!$branch_or_tag_creation || length($email)) && $email !~ m/\@$email_domain$/i) {
-            print "ERROR: [$branch_name $commit] Commit was not made using a \@$email_domain email address.\n";
+        if ((!$branch_or_tag_creation || length($email)) && $email !~ m/\@$defaultdomain$/i) {
+            print "ERROR: [$branch_name $commit] Commit was not made using a \@$defaultdomain email address.\n";
             print "ERROR: [$branch_name $commit] Please set your email address if you have not already done so: git config --global user.email $authenticated_user_email\n";
             print "ERROR: [$branch_name $commit] Please change the commit author before pushing: git commit --amend --reset-author\n\n";
+
             $errors++;
             $error_encountered = 1;
         }
@@ -91,24 +103,25 @@ unless ($errors) {
         }
 
         # error out if the log message isn't long enough
-        if ((!$branch_or_tag_creation || length($message)) && length($message) < 10) {
-            print "ERROR: [$branch_name $commit] Log message is not long enough.\n";
-            print "ERROR: [$branch_name $commit] Please change the commit message before pushing: git commit --amend -m 'Fixing XXX'\n\n";
+        if ((!$branch_or_tag_creation || length($message)) && length($message) < $commitmsglen) {
+            print "ERROR: [$branch_name $commit] Commit message length (".length($message).") is less than the required minimum length ($commitmsglen)\n";
+            print "ERROR: [$branch_name $commit] Please change the commit message before pushing: git commit --amend -m 'Fixing $sample_issue_id'\n\n";
+
             $errors++;
             $error_encountered = 1;
         }
 
         # error out if there is no JIRA ID in the branch name or log message
-        if (length($jira_prefix) > 0 && $message !~ m/$jira_prefix[0-9]+/) {
-            my $sample_issue_id = $jira_prefix.'XXX';
+        if (length($jiraprefix) > 0 && $message !~ m/$jiraprefix[0-9]+/) {
             print "ERROR: [$branch_name $commit] Log message is missing JIRA issue ID ($sample_issue_id).\n";
             print "ERROR: [$branch_name $commit] Please change the commit message before pushing: git commit --amend -m 'Fixing $sample_issue_id'\n\n";
+
             $errors++;
             $error_encountered = 1;
         }
 
         unless ($error_encountered) {
-            print "GOOD:  [$branch_name $commit] $message\n";
+            print "COMMIT: [$branch_name $commit] $message\n";
         }
     }
 }
