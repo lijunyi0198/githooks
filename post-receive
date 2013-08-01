@@ -277,7 +277,7 @@ generate_email_header()
 	# Generate header
 	cat <<-EOF
 	MIME-Version: 1.0
-	Content-type: text/html; charset=iso-8859-1
+	Content-type: text/html; charset=utf-8
 	To: $recipients
 	Subject: ${emailprefix}$projectdesc $refname_type $short_refname ${change_type}d. $describe
 	From: $fromaddress
