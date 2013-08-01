@@ -38,6 +38,8 @@ contrib script, there are a couple of other options that have been enabled:
  - *hooks.httplink* - Prefix to a web based tracker, ie 'http://<your host>/git?cs='
  - *hooks.defaultdomain* - Default domain to affix to the $REMOTE\_USER
    environment variable. Assumes this is being executed through HTTP
+ - *hooks.fromaddress* - Static From-address. if not set, the From-address is
+   constructed by affixing the $REMOTE\_USER to hooks.defaultdomain
  - *hooks.pygmentizeoptions* - Options to pass to pygmentize -- for example, to
    set the pygmentize style to 'github' set this value to: 'style=github'
 
